@@ -25,6 +25,7 @@ This app is not published on the App Store, TestFlight, or anywhere else. There 
 
 ## Documentation
 - [Documentation](https://lunatech.github.io/safariCookieCleaner/)
+- [How cookies work](https://lunatech.github.io/safariCookieCleaner/how-cookies-work.html) — Set-Cookie mechanics, cookie attributes, and browser console inspection
 
 ## Issues
 To report a bug or suggest a change, [open an issue](https://github.com/lunatech/safariCookieCleaner/issues).
