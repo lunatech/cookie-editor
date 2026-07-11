@@ -21,6 +21,7 @@ test('defines the supported cadence presets', () => {
       CleanupCadences.OneMinute,
       CleanupCadences.FifteenMinutes,
       CleanupCadences.OneHour,
+      CleanupCadences.SixHours,
       CleanupCadences.OneDay,
     ]
   );

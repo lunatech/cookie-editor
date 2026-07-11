@@ -10,6 +10,7 @@ export const CleanupCadences = Object.freeze({
   OneMinute: '1m',
   FifteenMinutes: '15m',
   OneHour: '1h',
+  SixHours: '6h',
   OneDay: '24h',
 });
 
@@ -17,6 +18,7 @@ export const CleanupCadenceOptions = Object.freeze([
   { id: CleanupCadences.OneMinute, label: '1 minute', minutes: 1 },
   { id: CleanupCadences.FifteenMinutes, label: '15 minutes', minutes: 15 },
   { id: CleanupCadences.OneHour, label: '1 hour', minutes: 60 },
+  { id: CleanupCadences.SixHours, label: '6 hours', minutes: 6 * 60 },
   { id: CleanupCadences.OneDay, label: '24 hours', minutes: 24 * 60 },
 ]);
 
