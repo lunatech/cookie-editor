@@ -118,15 +118,25 @@ If a cookie you expect to exist is missing from `document.cookie`, check the Sto
 
 ### Watching cookie changes in real time
 
+`cookieStore.addEventListener('change', ...)` is not reliable in Safari's page context. It fires only for changes made through `cookieStore.set()`, not for cookies set by `Set-Cookie` response headers or via `document.cookie =`. Use a polling interval against `document.cookie` instead:
+
 ```js
-// Log every future cookie change (cookieStore API)
-cookieStore.addEventListener('change', event => {
-  event.changed.forEach(c => console.log('changed:', c.name, c.value))
-  event.deleted.forEach(c => console.log('deleted:', c.name))
-})
+// Poll for non-HttpOnly cookie changes every 500ms
+let _prev = document.cookie
+const _watcher = setInterval(() => {
+  const curr = document.cookie
+  if (curr === _prev) return
+  console.log('cookies changed')
+  console.log('before:', _prev)
+  console.log('after: ', curr)
+  _prev = curr
+}, 500)
+
+// To stop watching:
+// clearInterval(_watcher)
 ```
 
-Reload the page or navigate within the site after adding this listener to watch the login flow set cookies in real time.
+This catches every non-`HttpOnly` cookie change regardless of how it was set. `HttpOnly` cookies changing in response to a request will not appear here; use the Storage panel in Web Inspector to spot those.
 
 ## What cookies cannot do
 
