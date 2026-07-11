@@ -1,3 +1,5 @@
+[Docs home](index.md) · [Development](development.md) · [Publishing](publishing.md)
+
 # How Safari Cookie Cleaner works on Safari
 
 Safari does not let you install a WebExtension directly the way Chrome or Firefox do. Apple requires a Safari Web Extension to ship inside a native app for macOS and iOS. This repo keeps both pieces together.
