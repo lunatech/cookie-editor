@@ -71,6 +71,8 @@ function cacheElements() {
   elements.subdomainPicker = document.getElementById('subdomain-picker');
   elements.siteClear = document.getElementById('delete-site');
   elements.subdomainClear = document.getElementById('delete-subdomain');
+  elements.siteTapClear = document.getElementById('site-tap-clear');
+  elements.subdomainTapClear = document.getElementById('subdomain-tap-clear');
   elements.siteRowContent = document.getElementById('site-row-content');
   elements.subdomainRowContent = document.getElementById(
     'subdomain-row-content'
@@ -111,6 +113,20 @@ function bindEvents() {
 
   elements.subdomainClear.addEventListener('click', async () => {
     logPopupEvent('Clear subdomain clicked', {
+      currentTabUrl: state.currentTab?.url,
+    });
+    await runManualCleanup(CleanupScopes.Subdomain);
+  });
+
+  elements.siteTapClear.addEventListener('click', async () => {
+    logPopupEvent('Clear site tap-icon clicked', {
+      currentTabUrl: state.currentTab?.url,
+    });
+    await runManualCleanup(CleanupScopes.Site);
+  });
+
+  elements.subdomainTapClear.addEventListener('click', async () => {
+    logPopupEvent('Clear subdomain tap-icon clicked', {
       currentTabUrl: state.currentTab?.url,
     });
     await runManualCleanup(CleanupScopes.Subdomain);
@@ -323,6 +339,14 @@ function renderRows() {
     'aria-label',
     `Clear cookies for ${hostname || 'this subdomain'}`
   );
+  elements.siteTapClear.setAttribute(
+    'aria-label',
+    `Clear cookies for ${site || 'this site'}`
+  );
+  elements.subdomainTapClear.setAttribute(
+    'aria-label',
+    `Clear cookies for ${hostname || 'this subdomain'}`
+  );
   elements.sitePicker.setAttribute(
     'aria-label',
     `Repeat cleanup for ${site || 'this site'}`
@@ -365,9 +389,11 @@ async function runManualCleanup(scope) {
     currentTabUrl: state.currentTab.url,
     hasPermission: state.hasPermission,
   });
-  const button =
-    scope === CleanupScopes.Site ? elements.siteClear : elements.subdomainClear;
-  await withBusy(button, async () => {
+  const buttons =
+    scope === CleanupScopes.Site
+      ? [elements.siteClear, elements.siteTapClear]
+      : [elements.subdomainClear, elements.subdomainTapClear];
+  await withBusy(buttons, async () => {
     const result = await deleteCookiesForCurrentTab(
       browserDetector,
       state.currentTab,
@@ -560,25 +586,29 @@ function closeSwipedRow(scope) {
   rowContent.classList.remove('swiped');
 }
 
-async function withBusy(button, work) {
-  const originalText = button.textContent;
+async function withBusy(buttons, work) {
+  const originalLabel = buttons[0].textContent;
   logPopupEvent('Busy action started', {
-    buttonLabel: originalText,
+    buttonLabel: originalLabel,
   });
-  button.disabled = true;
+  buttons.forEach(button => {
+    button.disabled = true;
+  });
   try {
     await work();
   } catch (error) {
     console.error('Action failed', error);
     logPopupEvent('Busy action failed', {
-      buttonLabel: originalText,
+      buttonLabel: originalLabel,
       error: error.message || String(error),
     });
     showTransientFooter(error.message || 'That action failed.');
   } finally {
-    button.disabled = false;
+    buttons.forEach(button => {
+      button.disabled = false;
+    });
     logPopupEvent('Busy action finished', {
-      buttonLabel: originalText,
+      buttonLabel: originalLabel,
     });
   }
 }
@@ -586,6 +616,8 @@ async function withBusy(button, work) {
 function setRowsDisabled(disabled) {
   elements.siteClear.disabled = disabled;
   elements.subdomainClear.disabled = disabled;
+  elements.siteTapClear.disabled = disabled;
+  elements.subdomainTapClear.disabled = disabled;
   elements.sitePicker.disabled = disabled;
   elements.subdomainPicker.disabled = disabled;
 }

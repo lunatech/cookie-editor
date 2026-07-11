@@ -123,6 +123,10 @@ button {
   color: var(--primary-text-color);
 }
 
+.row-tap-clear {
+  display: none;
+}
+
 .panel-footer {
   margin: 0;
   padding-top: 8px;
@@ -224,6 +228,24 @@ button {
     min-height: 44px;
     padding: 0 10px;
     font-size: 0.9375rem;
+  }
+
+  .row-tap-clear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    font-size: 1.125rem;
+    line-height: 1;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+  }
+
+  .row-tap-clear:active {
+    background: var(--menu-surface-hover-color);
   }
 }
 
