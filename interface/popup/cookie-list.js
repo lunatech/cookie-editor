@@ -1,7 +1,12 @@
 /* eslint-disable require-jsdoc */
 
 import { AutomationStorage } from '../core/automationStorage.js';
-import { CleanupCadences, formatCadenceLabel } from '../core/cleanupRules.js';
+import {
+  CleanupCadences,
+  formatCadenceLabel,
+  getCadenceOption,
+  getRuleAlarmName,
+} from '../core/cleanupRules.js';
 import {
   deleteCookiesForCurrentTab,
   filterCookiesForManualCleanup,
@@ -18,13 +23,27 @@ const storageHandler = new GenericStorageHandler(browserDetector);
 const automationStorage = new AutomationStorage(storageHandler);
 const permissionHandler = new PermissionHandler(browserDetector);
 
+const NEVER = 'never';
+const POPUP_CADENCE_OPTIONS = [
+  { id: NEVER, label: 'no repeat' },
+  { id: CleanupCadences.OneHour, label: '1h' },
+  { id: CleanupCadences.SixHours, label: '6h' },
+  { id: CleanupCadences.OneDay, label: '1d' },
+];
+const FOOTER_MESSAGE_TIMEOUT_MS = 2500;
+
 const state = {
   currentTab: null,
-  scopeDetails: null,
   hasPermission: false,
+  scopeDetails: { hostname: '', site: '' },
+  siteRule: null,
+  subdomainRule: null,
+  siteCookieCount: null,
+  subdomainCookieCount: null,
 };
 
 const elements = {};
+let footerRevertTimer = null;
 
 function logPopupEvent(event, details = {}) {
   console.log('[SafariCookieCleaner][popup]', event, details);
@@ -36,35 +55,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   cacheElements();
   bindEvents();
+  setupSwipe(elements.siteRowContent, CleanupScopes.Site);
+  setupSwipe(elements.subdomainRowContent, CleanupScopes.Subdomain);
   await updateTheme();
   watchSystemTheme();
   await loadCurrentTab();
 });
 
 function cacheElements() {
-  elements.currentSiteHeading = document.getElementById('current-site-heading');
   elements.hostnameChip = document.getElementById('hostname-chip');
-  elements.siteCard = document.getElementById('site-card');
-  elements.siteTarget = document.getElementById('site-target');
-  elements.siteCookieCount = document.getElementById('site-cookie-count');
-  elements.subdomainCard = document.getElementById('subdomain-card');
-  elements.subdomainTarget = document.getElementById('subdomain-target');
-  elements.subdomainCookieCount = document.getElementById(
-    'subdomain-cookie-count'
-  );
-  elements.siteRuleStatus = document.getElementById('site-rule-status');
-  elements.subdomainRuleStatus = document.getElementById(
-    'subdomain-rule-status'
+  elements.subdomainLabel = document.getElementById('subdomain-label');
+  elements.siteSub = document.getElementById('site-sub');
+  elements.subdomainSub = document.getElementById('subdomain-sub');
+  elements.sitePicker = document.getElementById('site-picker');
+  elements.subdomainPicker = document.getElementById('subdomain-picker');
+  elements.siteClear = document.getElementById('delete-site');
+  elements.subdomainClear = document.getElementById('delete-subdomain');
+  elements.siteRowContent = document.getElementById('site-row-content');
+  elements.subdomainRowContent = document.getElementById(
+    'subdomain-row-content'
   );
   elements.permissionCard = document.getElementById('permission-card');
   elements.requestPermission = document.getElementById('request-permission');
-  elements.cadence = document.getElementById('cadence');
-  elements.deleteSite = document.getElementById('delete-site');
-  elements.deleteSubdomain = document.getElementById('delete-subdomain');
-  elements.autoSite = document.getElementById('auto-site');
-  elements.autoSubdomain = document.getElementById('auto-subdomain');
   elements.manageAutomation = document.getElementById('manage-automation');
-  elements.status = document.getElementById('status');
+  elements.footer = document.getElementById('status-footer');
 }
 
 function bindEvents() {
@@ -80,42 +94,42 @@ function bindEvents() {
       state.currentTab.url
     );
     if (!granted) {
-      showStatus('Safari kept access unchanged.', 'warning');
+      showTransientFooter('Safari kept access unchanged.');
       return;
     }
 
-    showStatus('Site access granted.', 'success');
+    showTransientFooter('Site access granted.');
     await refreshPermissionsAndRules();
   });
 
-  elements.deleteSite.addEventListener('click', async () => {
-    logPopupEvent('Delete current site clicked', {
+  elements.siteClear.addEventListener('click', async () => {
+    logPopupEvent('Clear site clicked', {
       currentTabUrl: state.currentTab?.url,
     });
     await runManualCleanup(CleanupScopes.Site);
   });
 
-  elements.deleteSubdomain.addEventListener('click', async () => {
-    logPopupEvent('Delete subdomain clicked', {
+  elements.subdomainClear.addEventListener('click', async () => {
+    logPopupEvent('Clear subdomain clicked', {
       currentTabUrl: state.currentTab?.url,
     });
     await runManualCleanup(CleanupScopes.Subdomain);
   });
 
-  elements.autoSite.addEventListener('click', async () => {
-    logPopupEvent('Auto-delete site clicked', {
+  elements.sitePicker.addEventListener('change', async () => {
+    logPopupEvent('Site repeat picker changed', {
       currentTabUrl: state.currentTab?.url,
-      cadence: elements.cadence.value,
+      value: elements.sitePicker.value,
     });
-    await saveRule(CleanupScopes.Site);
+    await handlePickerChange(CleanupScopes.Site, elements.sitePicker);
   });
 
-  elements.autoSubdomain.addEventListener('click', async () => {
-    logPopupEvent('Auto-delete subdomain clicked', {
+  elements.subdomainPicker.addEventListener('change', async () => {
+    logPopupEvent('Subdomain repeat picker changed', {
       currentTabUrl: state.currentTab?.url,
-      cadence: elements.cadence.value,
+      value: elements.subdomainPicker.value,
     });
-    await saveRule(CleanupScopes.Subdomain);
+    await handlePickerChange(CleanupScopes.Subdomain, elements.subdomainPicker);
   });
 
   elements.manageAutomation.addEventListener('click', async () => {
@@ -158,12 +172,24 @@ async function loadCurrentTab() {
     logPopupEvent('Computed scope details', {
       scopeDetails: state.scopeDetails,
     });
-    renderScopeDetails();
+    elements.hostnameChip.textContent = state.scopeDetails.hostname;
+    elements.subdomainLabel.textContent = subdomainLabelFor(state.scopeDetails);
     await refreshPermissionsAndRules();
   } catch (error) {
     console.error('Failed to load the current tab', error);
     showUnsupportedState('Safari did not provide an active website.');
   }
+}
+
+function subdomainLabelFor({ hostname, site }) {
+  if (!hostname || !site || hostname === site) {
+    return 'Subdomain';
+  }
+  const suffix = `.${site}`;
+  if (!hostname.endsWith(suffix)) {
+    return 'Subdomain';
+  }
+  return `Subdomain · ${hostname.slice(0, -suffix.length)}`;
 }
 
 async function refreshPermissionsAndRules() {
@@ -179,24 +205,38 @@ async function refreshPermissionsAndRules() {
     hasPermission: state.hasPermission,
   });
   elements.permissionCard.classList.toggle('hidden', state.hasPermission);
-  setActionButtonsDisabled(!state.hasPermission);
+  setRowsDisabled(!state.hasPermission);
 
   if (!state.hasPermission) {
-    elements.siteRuleStatus.textContent =
-      'Grant site access to clean cookies here.';
-    elements.subdomainRuleStatus.textContent =
-      'Grant site access to save automation for this hostname.';
-    elements.siteCookieCount.textContent = '— cookies';
-    elements.subdomainCookieCount.textContent = '— cookies';
+    state.siteRule = null;
+    state.subdomainRule = null;
+    state.siteCookieCount = null;
+    state.subdomainCookieCount = null;
+    renderRows();
+    elements.footer.textContent = 'Grant site access to manage cookies here.';
     return;
   }
 
-  await refreshRuleStatus();
+  await refreshRules();
   await refreshCookieCounts();
+  renderRows();
+  await refreshFooter();
 }
 
-function formatCookieCount(count) {
-  return `${count} cookie${count === 1 ? '' : 's'}`;
+async function refreshRules() {
+  const rules = await automationStorage.listRules();
+  state.siteRule =
+    rules.find(
+      rule =>
+        rule.scope === CleanupScopes.Site &&
+        rule.target === state.scopeDetails.site
+    ) || null;
+  state.subdomainRule =
+    rules.find(
+      rule =>
+        rule.scope === CleanupScopes.Subdomain &&
+        rule.target === state.scopeDetails.hostname
+    ) || null;
 }
 
 async function refreshCookieCounts() {
@@ -219,65 +259,100 @@ async function refreshCookieCounts() {
     siteCount: cookies.length,
     subdomainCount: subdomainCookies.length,
   });
-  elements.siteCookieCount.textContent = formatCookieCount(cookies.length);
-  elements.subdomainCookieCount.textContent = formatCookieCount(
-    subdomainCookies.length
+  state.siteCookieCount = cookies.length;
+  state.subdomainCookieCount = subdomainCookies.length;
+}
+
+function formatCookieCount(count) {
+  return `${count} cookie${count === 1 ? '' : 's'}`;
+}
+
+function formatRepeatLabel(cadenceId) {
+  if (!cadenceId || cadenceId === NEVER) {
+    return 'no repeat';
+  }
+  const option = POPUP_CADENCE_OPTIONS.find(
+    candidate => candidate.id === cadenceId
+  );
+  return option ? option.label : formatCadenceLabel(cadenceId);
+}
+
+/**
+ * Ensures the picker has a selectable <option> for a rule's cadence even
+ * when it falls outside the popup's curated Never/1h/6h/1d set (e.g. a
+ * pre-existing 1m/15m rule created via the options page). Without this, the
+ * <select> would silently fail to reflect the saved cadence, and any
+ * incidental interaction with it could overwrite a valid rule.
+ * @param {HTMLSelectElement} picker
+ * @param {?string} cadenceId
+ */
+function ensurePickerOption(picker, cadenceId) {
+  if (!cadenceId || picker.querySelector(`option[value="${cadenceId}"]`)) {
+    return;
+  }
+  const option = document.createElement('option');
+  option.value = cadenceId;
+  option.textContent = formatCadenceLabel(cadenceId);
+  picker.appendChild(option);
+}
+
+function renderRows() {
+  const { site, hostname } = state.scopeDetails;
+
+  elements.siteSub.textContent =
+    state.siteCookieCount === null
+      ? '—'
+      : `${formatCookieCount(state.siteCookieCount)} · ${formatRepeatLabel(state.siteRule?.cadence)}`;
+  elements.subdomainSub.textContent =
+    state.subdomainCookieCount === null
+      ? '—'
+      : `${formatCookieCount(state.subdomainCookieCount)} · ${formatRepeatLabel(state.subdomainRule?.cadence)}`;
+
+  ensurePickerOption(elements.sitePicker, state.siteRule?.cadence);
+  ensurePickerOption(elements.subdomainPicker, state.subdomainRule?.cadence);
+  elements.sitePicker.value = state.siteRule ? state.siteRule.cadence : NEVER;
+  elements.subdomainPicker.value = state.subdomainRule
+    ? state.subdomainRule.cadence
+    : NEVER;
+
+  elements.siteClear.setAttribute(
+    'aria-label',
+    `Clear cookies for ${site || 'this site'}`
+  );
+  elements.subdomainClear.setAttribute(
+    'aria-label',
+    `Clear cookies for ${hostname || 'this subdomain'}`
+  );
+  elements.sitePicker.setAttribute(
+    'aria-label',
+    `Repeat cleanup for ${site || 'this site'}`
+  );
+  elements.subdomainPicker.setAttribute(
+    'aria-label',
+    `Repeat cleanup for ${hostname || 'this subdomain'}`
   );
 }
 
-function renderScopeDetails() {
-  const { hostname, site } = state.scopeDetails;
-  elements.currentSiteHeading.textContent = hostname;
-  elements.hostnameChip.textContent = hostname;
-  elements.siteTarget.textContent = site;
-  elements.siteCard.title =
-    hostname === site
-      ? 'Deletes cookies Safari sends to this site right now.'
-      : `Deletes cookies Safari sends to ${hostname}, including parent-domain cookies from ${site}.`;
-  elements.deleteSite.setAttribute('aria-label', `Delete cookies for ${site}`);
-  elements.autoSite.setAttribute(
-    'aria-label',
-    `Set up auto-delete for ${site}`
-  );
+async function handlePickerChange(scope, picker) {
+  if (!state.currentTab || !state.hasPermission) {
+    return;
+  }
 
-  elements.subdomainTarget.textContent = hostname;
-  elements.subdomainCard.title = `Deletes only cookies scoped to ${hostname}. Broader ${site} cookies stay in place when possible.`;
-  elements.deleteSubdomain.setAttribute(
-    'aria-label',
-    `Delete cookies for ${hostname}`
-  );
-  elements.autoSubdomain.setAttribute(
-    'aria-label',
-    `Set up auto-delete for ${hostname}`
-  );
-}
+  const value = picker.value;
+  const existingRule =
+    scope === CleanupScopes.Site ? state.siteRule : state.subdomainRule;
 
-async function refreshRuleStatus() {
-  const rules = await automationStorage.listRules();
-  const siteRule = rules.find(rule => {
-    return (
-      rule.scope === CleanupScopes.Site &&
-      rule.target === state.scopeDetails.site
-    );
-  });
-  const subdomainRule = rules.find(rule => {
-    return (
-      rule.scope === CleanupScopes.Subdomain &&
-      rule.target === state.scopeDetails.hostname
-    );
-  });
+  if (value === NEVER) {
+    if (existingRule) {
+      await automationStorage.removeRule(existingRule.id);
+    }
+  } else {
+    await automationStorage.upsertRule(state.currentTab.url, scope, value);
+  }
 
-  elements.siteRuleStatus.textContent = siteRule
-    ? describeRule(siteRule)
-    : 'No auto-delete rule saved.';
-  elements.subdomainRuleStatus.textContent = subdomainRule
-    ? describeRule(subdomainRule)
-    : 'No auto-delete rule saved.';
-}
-
-function describeRule(rule) {
-  const prefix = rule.enabled ? 'Auto-delete' : 'Paused';
-  return `${prefix} every ${formatCadenceLabel(rule.cadence)}.`;
+  await refreshRules();
+  renderRows();
+  await refreshFooter();
 }
 
 async function runManualCleanup(scope) {
@@ -291,9 +366,7 @@ async function runManualCleanup(scope) {
     hasPermission: state.hasPermission,
   });
   const button =
-    scope === CleanupScopes.Site
-      ? elements.deleteSite
-      : elements.deleteSubdomain;
+    scope === CleanupScopes.Site ? elements.siteClear : elements.subdomainClear;
   await withBusy(button, async () => {
     const result = await deleteCookiesForCurrentTab(
       browserDetector,
@@ -307,55 +380,184 @@ async function runManualCleanup(scope) {
       matchedCount: result.matchedCount,
       removedCount: result.removedCount,
     });
-    if (!result.matchedCount) {
-      showStatus(
-        scope === CleanupScopes.Site
-          ? 'No cookies matched the current site.'
-          : 'No cookies were scoped only to this subdomain.',
-        'warning'
-      );
-      return;
-    }
+    await refreshCookieCounts();
+    renderRows();
 
-    const label = scope === CleanupScopes.Site ? 'current site' : 'subdomain';
-    showStatus(
-      `Removed ${result.removedCount} cookie${result.removedCount === 1 ? '' : 's'} for the ${label}.`,
-      'success'
+    const label = scope === CleanupScopes.Site ? 'site' : 'subdomain';
+    showTransientFooter(
+      result.matchedCount
+        ? `Removed ${result.removedCount} cookie${result.removedCount === 1 ? '' : 's'} for the ${label}.`
+        : `No cookies matched the ${label}.`
     );
   });
-  await refreshCookieCounts();
+  closeSwipedRow(scope);
 }
 
-async function saveRule(scope) {
-  if (!state.currentTab || !state.hasPermission) {
+async function refreshFooter() {
+  if (!state.hasPermission) {
     return;
   }
 
-  logPopupEvent('Saving cleanup rule', {
-    scope: scope,
-    currentTabUrl: state.currentTab.url,
-    cadence: elements.cadence.value,
+  const activeRules = [state.siteRule, state.subdomainRule].filter(Boolean);
+  if (!activeRules.length) {
+    elements.footer.textContent =
+      'Automatic clearing is off — clear anytime above.';
+    return;
+  }
+
+  const scheduledTimes = (
+    await Promise.all(activeRules.map(getScheduledTime))
+  ).filter(time => Number.isFinite(time));
+  if (!scheduledTimes.length) {
+    elements.footer.textContent = 'Automatic clearing is scheduled.';
+    return;
+  }
+
+  const soonest = Math.min(...scheduledTimes);
+  const duration = formatDuration(soonest - Date.now());
+  elements.footer.textContent = `Next automatic run for this site in ${duration}.`;
+}
+
+async function getScheduledTime(rule) {
+  const api = browserDetector.getApi();
+  if (api.alarms?.get) {
+    try {
+      const alarmName = getRuleAlarmName(rule.id);
+      const alarm = browserDetector.supportsPromises()
+        ? await api.alarms.get(alarmName)
+        : await new Promise(resolve => api.alarms.get(alarmName, resolve));
+      if (alarm?.scheduledTime) {
+        return alarm.scheduledTime;
+      }
+    } catch (error) {
+      console.error('Failed to read scheduled alarm time', error);
+    }
+  }
+
+  const minutes = getCadenceOption(rule.cadence).minutes;
+  const reference = rule.lastRunAt || rule.updatedAt || rule.createdAt;
+  const referenceMs = reference ? new Date(reference).getTime() : Date.now();
+  return referenceMs + minutes * 60 * 1000;
+}
+
+function formatDuration(milliseconds) {
+  const totalMinutes = Math.max(1, Math.round(milliseconds / 60000));
+  if (totalMinutes < 60) {
+    return `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`;
+  }
+  const totalHours = Math.round(totalMinutes / 60);
+  if (totalHours < 24) {
+    return `${totalHours} hour${totalHours === 1 ? '' : 's'}`;
+  }
+  const totalDays = Math.round(totalHours / 24);
+  return `${totalDays} day${totalDays === 1 ? '' : 's'}`;
+}
+
+function showTransientFooter(message) {
+  elements.footer.textContent = message;
+  clearTimeout(footerRevertTimer);
+  footerRevertTimer = setTimeout(() => {
+    footerRevertTimer = null;
+    refreshFooter();
+  }, FOOTER_MESSAGE_TIMEOUT_MS);
+}
+
+/**
+ * Wires touch swipe-to-clear on a row's content element. The row's Clear
+ * button sits behind the content in document order and stays a real,
+ * focusable <button> at all times (only visually clipped by the row's
+ * `overflow: hidden`, never `display`/`visibility` hidden), so it remains
+ * reachable by keyboard and VoiceOver even when not swiped open.
+ * @param {HTMLElement} rowContent
+ * @param {string} scope
+ */
+function setupSwipe(rowContent, scope) {
+  const openX = -84;
+  const openThreshold = -40;
+  const moveThreshold = 4;
+  let startX = 0;
+  let baseX = 0;
+  let lastX = 0;
+  let dragging = false;
+  let moved = false;
+
+  const isOpen = () => rowContent.classList.contains('swiped');
+  const setOpen = open => {
+    rowContent.classList.toggle('swiped', open);
+    if (open) {
+      closeOtherSwipedRows(scope);
+    }
+  };
+
+  rowContent.addEventListener(
+    'touchstart',
+    event => {
+      if (event.touches.length !== 1) {
+        return;
+      }
+      dragging = true;
+      moved = false;
+      startX = event.touches[0].clientX;
+      baseX = isOpen() ? openX : 0;
+      rowContent.style.transition = 'none';
+    },
+    { passive: true }
+  );
+
+  rowContent.addEventListener(
+    'touchmove',
+    event => {
+      if (!dragging) {
+        return;
+      }
+      const delta = event.touches[0].clientX - startX;
+      if (Math.abs(delta) > moveThreshold) {
+        moved = true;
+      }
+      lastX = Math.min(0, Math.max(openX, baseX + delta));
+      rowContent.style.transform = `translateX(${lastX}px)`;
+    },
+    { passive: true }
+  );
+
+  rowContent.addEventListener('touchend', () => {
+    if (!dragging) {
+      return;
+    }
+    dragging = false;
+    rowContent.style.transition = '';
+    rowContent.style.transform = '';
+    if (!moved) {
+      if (isOpen()) {
+        setOpen(false);
+      }
+      return;
+    }
+    setOpen(lastX <= openThreshold);
   });
-  const button =
-    scope === CleanupScopes.Site ? elements.autoSite : elements.autoSubdomain;
-  await withBusy(button, async () => {
-    const rule = await automationStorage.upsertRule(
-      state.currentTab.url,
-      scope,
-      elements.cadence.value || CleanupCadences.OneHour
-    );
-    await refreshRuleStatus();
-    logPopupEvent('Cleanup rule saved', {
-      scope: scope,
-      currentTabUrl: state.currentTab.url,
-      cadence: rule.cadence,
-      ruleId: rule.id,
-    });
-    showStatus(
-      `${scope === CleanupScopes.Site ? 'Site' : 'Subdomain'} cleanup saved for every ${formatCadenceLabel(rule.cadence)}.`,
-      'success'
-    );
+
+  rowContent.addEventListener('touchcancel', () => {
+    dragging = false;
+    rowContent.style.transition = '';
+    rowContent.style.transform = '';
   });
+}
+
+function closeOtherSwipedRows(exceptScope) {
+  if (exceptScope !== CleanupScopes.Site) {
+    elements.siteRowContent.classList.remove('swiped');
+  }
+  if (exceptScope !== CleanupScopes.Subdomain) {
+    elements.subdomainRowContent.classList.remove('swiped');
+  }
+}
+
+function closeSwipedRow(scope) {
+  const rowContent =
+    scope === CleanupScopes.Site
+      ? elements.siteRowContent
+      : elements.subdomainRowContent;
+  rowContent.classList.remove('swiped');
 }
 
 async function withBusy(button, work) {
@@ -364,7 +566,6 @@ async function withBusy(button, work) {
     buttonLabel: originalText,
   });
   button.disabled = true;
-  button.textContent = 'Working…';
   try {
     await work();
   } catch (error) {
@@ -373,48 +574,36 @@ async function withBusy(button, work) {
       buttonLabel: originalText,
       error: error.message || String(error),
     });
-    showStatus(error.message || 'That action failed.', 'error');
+    showTransientFooter(error.message || 'That action failed.');
   } finally {
     button.disabled = false;
-    button.textContent = originalText;
     logPopupEvent('Busy action finished', {
       buttonLabel: originalText,
     });
   }
 }
 
-function setActionButtonsDisabled(disabled) {
-  elements.deleteSite.disabled = disabled;
-  elements.deleteSubdomain.disabled = disabled;
-  elements.autoSite.disabled = disabled;
-  elements.autoSubdomain.disabled = disabled;
+function setRowsDisabled(disabled) {
+  elements.siteClear.disabled = disabled;
+  elements.subdomainClear.disabled = disabled;
+  elements.sitePicker.disabled = disabled;
+  elements.subdomainPicker.disabled = disabled;
 }
 
 function showUnsupportedState(message) {
   logPopupEvent('Unsupported popup state', {
     message: message,
   });
-  elements.currentSiteHeading.textContent = 'No website available';
   elements.hostnameChip.textContent = 'Unavailable';
-  elements.siteTarget.textContent = '—';
-  elements.subdomainTarget.textContent = '—';
-  elements.siteCard.title = message;
-  elements.subdomainCard.title = message;
-  elements.siteCookieCount.textContent = '— cookies';
-  elements.subdomainCookieCount.textContent = '— cookies';
-  elements.siteRuleStatus.textContent = 'Open a website to continue.';
-  elements.subdomainRuleStatus.textContent = 'Open a website to continue.';
+  elements.subdomainLabel.textContent = 'Subdomain';
+  state.siteCookieCount = null;
+  state.subdomainCookieCount = null;
+  state.siteRule = null;
+  state.subdomainRule = null;
+  renderRows();
+  elements.footer.textContent = message;
   elements.permissionCard.classList.add('hidden');
-  setActionButtonsDisabled(true);
-}
-
-function showStatus(message, tone) {
-  logPopupEvent('Status updated', {
-    message: message,
-    tone: tone || 'info',
-  });
-  elements.status.textContent = message;
-  elements.status.className = `status ${tone || 'info'}`;
+  setRowsDisabled(true);
 }
 
 async function getCurrentTab() {
