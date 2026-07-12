@@ -58,6 +58,33 @@
           </div>
         </div>
 
+        <div class="respawn-note hidden" id="respawn-note">
+          <button
+            class="respawn-toggle"
+            id="respawn-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="respawn-detail"
+          >
+            <span class="respawn-chevron" aria-hidden="true">▶</span>
+            <span class="respawn-summary" id="respawn-summary"></span>
+          </button>
+          <div class="respawn-detail hidden" id="respawn-detail">
+            <p class="respawn-explain">
+              These cookies can rebuild themselves from copies stored
+              elsewhere on this page. Clearing cookies alone won't remove
+              them.
+            </p>
+            <label class="respawn-clear-toggle" for="respawn-clear-toggle">
+              <input type="checkbox" id="respawn-clear-toggle" />
+              <span>
+                Also clear respawning cookies for this subdomain
+                <small>May sign you out or reset saved settings here.</small>
+              </span>
+            </label>
+          </div>
+        </div>
+
         <p class="panel-footer" id="status-footer" aria-live="polite">
           Automatic clearing is off — clear anytime above.
         </p>
@@ -72,18 +99,6 @@
         <button class="button secondary" id="request-permission" type="button">
           Allow access to this site
         </button>
-      </section>
-
-      <section class="card hidden" id="evercookie-card">
-        <h2>Evercookie protection</h2>
-        <p class="evercookie-summary" id="evercookie-summary">Checking…</p>
-        <p class="evercookie-warning hidden" id="evercookie-warning" role="status"></p>
-        <button class="button evercookie-clear" id="evercookie-clear" type="button">
-          Clear cookies + hidden data
-        </button>
-        <small class="evercookie-clear-note">
-          This may sign you out or reset preferences for this site.
-        </small>
       </section>
 
       <button class="link-button" id="manage-automation" type="button">

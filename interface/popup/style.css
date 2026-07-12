@@ -277,59 +277,87 @@ button {
   color: var(--secondary-text-color);
 }
 
-#evercookie-card {
-  padding: 12px 14px;
-  gap: 8px;
-}
-
-#evercookie-card:not(.hidden) {
+.respawn-note {
   display: grid;
+  padding-top: 8px;
+  margin-top: 2px;
+  border-top: 1px solid var(--secondary-outline-color, var(--secondary-border-color));
 }
 
-#evercookie-card h2 {
-  margin: 0;
-  font-size: 1rem;
+.respawn-note.hidden {
+  display: none;
 }
 
-.evercookie-summary {
+.respawn-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 2px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--primary-danger-color);
+}
+
+.respawn-toggle:hover,
+.respawn-toggle:focus-visible {
+  background: var(--menu-surface-hover-color);
+  outline: none;
+}
+
+.respawn-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 0.7rem;
+  transition: transform 150ms ease-out;
+}
+
+.respawn-toggle[aria-expanded='true'] .respawn-chevron {
+  transform: rotate(90deg);
+}
+
+.respawn-summary {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.respawn-detail {
+  display: grid;
+  gap: 8px;
+  padding: 6px 2px 2px 20px;
+}
+
+.respawn-detail.hidden {
+  display: none;
+}
+
+.respawn-explain {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
   color: var(--secondary-text-color);
 }
 
-.evercookie-warning {
-  margin: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--notice-danger-surface-color, rgba(207, 0, 15, 0.1));
-  color: var(--primary-danger-color);
+.respawn-clear-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   font-size: 0.75rem;
-  line-height: 1.4;
-}
-
-.evercookie-clear {
-  width: 100%;
-  margin-top: 2px;
-  background: var(--primary-danger-color);
-  color: white;
   cursor: pointer;
-  min-width: 0;
-  white-space: normal;
 }
 
-.evercookie-clear:hover:not(:disabled) {
-  filter: brightness(0.92);
+.respawn-clear-toggle input {
+  margin-top: 2px;
+  flex-shrink: 0;
 }
 
-.evercookie-clear:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.evercookie-clear-note {
+.respawn-clear-toggle small {
   display: block;
+  margin-top: 2px;
   font-size: 0.6875rem;
-  line-height: 1.35;
   color: var(--secondary-text-color);
 }
 
