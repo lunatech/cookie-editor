@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  clearPageStorageForTab,
   detectRespawnSignals,
   listPopulatedMechanisms,
   scanTabForEvercookies,
@@ -124,4 +125,31 @@ test('returns an empty scan when the scripting API is unavailable', async () => 
     populatedMechanisms: [],
     respawnSignals: [],
   });
+});
+
+test('clears page storage for a tab and reports which mechanisms were cleared', async () => {
+  const browserDetector = new FakeBrowserDetector({
+    clearedMechanisms: ['localStorage', 'indexedDB'],
+  });
+
+  const result = await clearPageStorageForTab(browserDetector, {
+    id: 1,
+    url: 'https://example.com/',
+  });
+
+  assert.deepEqual(result, {
+    supported: true,
+    clearedMechanisms: ['localStorage', 'indexedDB'],
+  });
+});
+
+test('reports unsupported when the scripting API is unavailable for clearing', async () => {
+  const browserDetector = { getApi: () => ({}) };
+
+  const result = await clearPageStorageForTab(browserDetector, {
+    id: 1,
+    url: 'https://example.com/',
+  });
+
+  assert.deepEqual(result, { supported: false, clearedMechanisms: [] });
 });

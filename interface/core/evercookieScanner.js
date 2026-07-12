@@ -164,6 +164,90 @@ export function listPopulatedMechanisms(stores) {
   return populated;
 }
 
+/**
+ * Runs inside the inspected page, injected via chrome.scripting.executeScript,
+ * to remove data from every storage mechanism collectPageStorage() can see.
+ * Must stay fully self-contained for the same reason as collectPageStorage().
+ * @return {Promise<{clearedMechanisms: string[]}>}
+ */
+export async function clearPageStorage() {
+  const clearedMechanisms = [];
+
+  try {
+    if (localStorage.length) {
+      localStorage.clear();
+      clearedMechanisms.push('localStorage');
+    }
+  } catch (error) {
+    // Storage may be unavailable (e.g. private browsing); nothing to do.
+  }
+
+  try {
+    if (sessionStorage.length) {
+      sessionStorage.clear();
+      clearedMechanisms.push('sessionStorage');
+    }
+  } catch (error) {
+    // Storage may be unavailable (e.g. private browsing); nothing to do.
+  }
+
+  if (window.name) {
+    window.name = '';
+    clearedMechanisms.push('windowName');
+  }
+
+  if (typeof cookieStore !== 'undefined') {
+    try {
+      const all = await cookieStore.getAll();
+      await Promise.all(all.map(cookie => cookieStore.delete(cookie.name)));
+      if (all.length) {
+        clearedMechanisms.push('cookieStore');
+      }
+    } catch (error) {
+      // cookieStore may be unavailable; nothing to do.
+    }
+  }
+
+  if (
+    typeof indexedDB !== 'undefined' &&
+    typeof indexedDB.databases === 'function'
+  ) {
+    try {
+      const databases = await indexedDB.databases();
+      await Promise.all(
+        databases.map(
+          db =>
+            new Promise(resolve => {
+              const request = indexedDB.deleteDatabase(db.name);
+              request.onsuccess = () => resolve();
+              request.onerror = () => resolve();
+              request.onblocked = () => resolve();
+            })
+        )
+      );
+      if (databases.length) {
+        clearedMechanisms.push('indexedDB');
+      }
+    } catch (error) {
+      // IndexedDB may be unavailable; nothing to do.
+    }
+  }
+
+  if (typeof caches !== 'undefined') {
+    try {
+      const names = await caches.keys();
+      await Promise.all(names.map(name => caches.delete(name)));
+      if (names.length) {
+        clearedMechanisms.push('cacheAPI');
+      }
+    } catch (error) {
+      // Cache API may be unavailable; nothing to do.
+    }
+  }
+
+  return { clearedMechanisms };
+}
+
 function getApi(browserDetector) {
   return browserDetector.getApi();
 }
@@ -205,4 +289,43 @@ export async function scanTabForEvercookies(browserDetector, tab) {
   });
 
   return { stores, populatedMechanisms, respawnSignals };
+}
+
+/**
+ * Injects clearPageStorage into the given tab to remove localStorage,
+ * sessionStorage, window.name, cookieStore, IndexedDB, and Cache API data
+ * for that origin. This is a broader, more disruptive action than removing
+ * cookies — it can sign the user out or drop locally-saved app state — so
+ * callers should treat it as an explicit opt-in, not a default.
+ * @param {BrowserDetector} browserDetector
+ * @param {object} tab
+ * @return {Promise<{supported: boolean, clearedMechanisms: string[]}>}
+ */
+export async function clearPageStorageForTab(browserDetector, tab) {
+  const api = getApi(browserDetector);
+  console.log(`${LOG_PREFIX} Clearing page storage`, {
+    tabId: tab.id,
+    url: tab.url,
+  });
+
+  if (!api.scripting?.executeScript) {
+    console.log(`${LOG_PREFIX} scripting API unavailable; skipping clear`, {
+      tabId: tab.id,
+    });
+    return { supported: false, clearedMechanisms: [] };
+  }
+
+  const [injectionResult] = await api.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: clearPageStorage,
+  });
+
+  const clearedMechanisms = injectionResult?.result?.clearedMechanisms || [];
+  console.log(`${LOG_PREFIX} Cleared page storage`, {
+    tabId: tab.id,
+    url: tab.url,
+    clearedMechanisms: clearedMechanisms,
+  });
+
+  return { supported: true, clearedMechanisms };
 }

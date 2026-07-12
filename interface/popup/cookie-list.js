@@ -12,7 +12,10 @@ import {
   filterCookiesForManualCleanup,
   getCookiesForCurrentTab,
 } from '../core/cookieCleaner.js';
-import { scanTabForEvercookies } from '../core/evercookieScanner.js';
+import {
+  clearPageStorageForTab,
+  scanTabForEvercookies,
+} from '../core/evercookieScanner.js';
 import { CleanupScopes, getScopeDetails } from '../core/urlScope.js';
 import { BrowserDetector } from '../lib/browserDetector.js';
 import { GenericStorageHandler } from '../lib/genericStorageHandler.js';
@@ -42,16 +45,6 @@ const state = {
   siteCookieCount: null,
   subdomainCookieCount: null,
   evercookieScan: null,
-};
-
-const MECHANISM_LABELS = {
-  cookies: 'Cookies',
-  localStorage: 'Local storage',
-  sessionStorage: 'Session storage',
-  windowName: 'Window name',
-  cookieStore: 'Cookie store',
-  indexedDB: 'IndexedDB',
-  cacheAPI: 'Cache API',
 };
 
 const elements = {};
@@ -93,8 +86,10 @@ function cacheElements() {
   elements.requestPermission = document.getElementById('request-permission');
   elements.evercookieCard = document.getElementById('evercookie-card');
   elements.evercookieSummary = document.getElementById('evercookie-summary');
-  elements.evercookieBadges = document.getElementById('evercookie-badges');
   elements.evercookieWarning = document.getElementById('evercookie-warning');
+  elements.evercookieClearToggle = document.getElementById(
+    'evercookie-clear-toggle'
+  );
   elements.manageAutomation = document.getElementById('manage-automation');
   elements.footer = document.getElementById('status-footer');
 }
@@ -341,39 +336,40 @@ function renderEvercookieCard() {
   }
 
   elements.evercookieCard.classList.remove('hidden');
-  elements.evercookieBadges.replaceChildren();
   elements.evercookieWarning.classList.add('hidden');
 
   if (!state.evercookieScan.supported) {
     elements.evercookieSummary.textContent =
-      'Evercookie scanning is not available in this browser.';
+      "Can't check for zombie cookies in this browser yet.";
+    setEvercookieClearToggleAvailable(false);
     return;
   }
 
   if (state.evercookieScan.failed) {
-    elements.evercookieSummary.textContent = 'Could not scan this page.';
+    elements.evercookieSummary.textContent =
+      'Could not check this page for zombie cookies.';
+    setEvercookieClearToggleAvailable(false);
     return;
   }
 
-  const { populatedMechanisms, respawnSignals } = state.evercookieScan;
+  setEvercookieClearToggleAvailable(true);
 
-  elements.evercookieSummary.textContent = populatedMechanisms.length
-    ? `Found data in ${populatedMechanisms.length} storage location${populatedMechanisms.length === 1 ? '' : 's'}.`
-    : 'No extra browser storage detected on this page.';
+  const zombieCookieCount = state.evercookieScan.respawnSignals.length;
+  elements.evercookieSummary.textContent = zombieCookieCount
+    ? `Found ${zombieCookieCount} zombie cookie${zombieCookieCount === 1 ? '' : 's'} on this page.`
+    : 'No zombie cookies found on this page.';
 
-  elements.evercookieBadges.replaceChildren(
-    ...populatedMechanisms.map(mechanism => {
-      const badge = document.createElement('li');
-      badge.className = 'evercookie-badge';
-      badge.textContent = MECHANISM_LABELS[mechanism] || mechanism;
-      return badge;
-    })
-  );
-
-  if (respawnSignals.length) {
+  if (zombieCookieCount) {
     elements.evercookieWarning.textContent =
-      'Same identifier found in multiple storage locations — this site may respawn deleted cookies.';
+      'A zombie cookie hides copies of a tracking code so it can come back after you delete your cookies. Turn on the option below to remove it too.';
     elements.evercookieWarning.classList.remove('hidden');
+  }
+}
+
+function setEvercookieClearToggleAvailable(available) {
+  elements.evercookieClearToggle.disabled = !available;
+  if (!available) {
+    elements.evercookieClearToggle.checked = false;
   }
 }
 
@@ -478,10 +474,13 @@ async function runManualCleanup(scope) {
     return;
   }
 
+  const alsoClearStorage = elements.evercookieClearToggle.checked;
+
   logPopupEvent('Manual cleanup starting', {
     scope: scope,
     currentTabUrl: state.currentTab.url,
     hasPermission: state.hasPermission,
+    alsoClearStorage: alsoClearStorage,
   });
   const buttons =
     scope === CleanupScopes.Site
@@ -494,20 +493,40 @@ async function runManualCleanup(scope) {
       scope
     );
 
+    let clearedStorage = false;
+    if (alsoClearStorage) {
+      try {
+        await clearPageStorageForTab(browserDetector, state.currentTab);
+        clearedStorage = true;
+      } catch (error) {
+        console.error('Failed to clear extra page data', error);
+        logPopupEvent('Manual storage clear failed', {
+          currentTabUrl: state.currentTab.url,
+          error: error.message || String(error),
+        });
+      }
+    }
+
     logPopupEvent('Manual cleanup finished', {
       scope: scope,
       currentTabUrl: state.currentTab.url,
       matchedCount: result.matchedCount,
       removedCount: result.removedCount,
+      clearedStorage: clearedStorage,
     });
     await refreshCookieCounts();
+    await refreshEvercookieScan();
     renderRows();
+    renderEvercookieCard();
 
     const label = scope === CleanupScopes.Site ? 'site' : 'subdomain';
+    const cookieMessage = result.matchedCount
+      ? `Removed ${result.removedCount} cookie${result.removedCount === 1 ? '' : 's'} for the ${label}.`
+      : `No cookies matched the ${label}.`;
     showTransientFooter(
-      result.matchedCount
-        ? `Removed ${result.removedCount} cookie${result.removedCount === 1 ? '' : 's'} for the ${label}.`
-        : `No cookies matched the ${label}.`
+      clearedStorage
+        ? `${cookieMessage} Also cleared extra data on this page.`
+        : cookieMessage
     );
   });
   closeSwipedRow(scope);
