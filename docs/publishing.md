@@ -1,4 +1,8 @@
-[Docs home]({% link index.md %}) · [Contributing]({% link contributing.md %})
+---
+title: Publishing
+---
+
+[Docs home](index.html) · [Contributing](contributing.html)
 
 # Publishing
 

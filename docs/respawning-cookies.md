@@ -2,7 +2,7 @@
 title: "The Web Cookie Book: Respawning cookies"
 ---
 
-[Docs home]({% link index.md %}) · [The Web Cookie Book]({% link web-cookie-book.md %}) · [How cookies work]({% link how-cookies-work.md %}) · [Evercookie tracking]({% link evercookie.md %})
+[Docs home](index.html) · [The Web Cookie Book](web-cookie-book.html) · [How cookies work](how-cookies-work.html) · [Evercookie tracking](evercookie.html)
 
 # Respawning cookies in Safari Cookie Cleaner
 
@@ -43,4 +43,4 @@ A few limits matter:
 
 Cookie removal itself has one Safari-specific workaround. The cleaner first resolves every real cookie store with `cookies.getAllCookieStores()` and then queries each store directly. That avoids a Safari 18+ bug documented in the codebase where `cookies.getAll()` can return an empty result on the first call when `storeId` is left undefined.
 
-If you want the broader background on evercookies and zombie-cookie tracking, read [Evercookie tracking]({% link evercookie.md %}). If you want the lower-level cookie basics first, start with [How cookies work]({% link how-cookies-work.md %}).
+If you want the broader background on evercookies and zombie-cookie tracking, read [Evercookie tracking](evercookie.html). If you want the lower-level cookie basics first, start with [How cookies work](how-cookies-work.html).

@@ -2,7 +2,7 @@
 title: Contributing
 ---
 
-[Docs home]({% link index.md %}) · [Development]({% link development.md %}) · [Architecture]({% link architecture.md %}) · [Publishing]({% link publishing.md %})
+[Docs home](index.html) · [Development](development.html) · [Architecture](architecture.html) · [Publishing](publishing.html)
 
 # Contributing
 
@@ -23,7 +23,7 @@ Safari Cookie Cleaner exists to do two things well:
 Those same two goals shape this docs site:
 
 - **Contributors** — the path you are reading now
-- **[The Web Cookie Book]({% link web-cookie-book.md %})** — the path for learners
+- **[The Web Cookie Book](web-cookie-book.html)** — the path for learners
 
 ## What kinds of contributions help
 
@@ -47,16 +47,16 @@ If a proposed feature pushes against those boundaries, make the case first in an
 
 ## Start here
 
-- [Development]({% link development.md %}) — install dependencies, run tests, build the extension payload, and load the app locally
-- [Architecture]({% link architecture.md %}) — understand how the extension and wrapper app fit together
-- [Publishing]({% link publishing.md %}) — release steps if you are maintaining your own signed fork
+- [Development](development.html) — install dependencies, run tests, build the extension payload, and load the app locally
+- [Architecture](architecture.html) — understand how the extension and wrapper app fit together
+- [Publishing](publishing.html) — release steps if you are maintaining your own signed fork
 
 ## Good first contribution areas
 
 - Tighten cookie cleanup edge cases around site vs. subdomain scope
 - Improve tests for pure logic in `interface/core/`
 - Simplify popup or options flows without broadening scope
-- Improve explanations in [The Web Cookie Book]({% link web-cookie-book.md %}) with concrete, source-backed examples
+- Improve explanations in [The Web Cookie Book](web-cookie-book.html) with concrete, source-backed examples
 
 ## Reporting changes
 

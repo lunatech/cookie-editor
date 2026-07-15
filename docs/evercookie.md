@@ -2,7 +2,7 @@
 title: "The Web Cookie Book: Evercookie tracking"
 ---
 
-[Docs home]({% link index.md %}) · [The Web Cookie Book]({% link web-cookie-book.md %}) · [How cookies work]({% link how-cookies-work.md %}) · [Respawning cookies]({% link respawning-cookies.md %})
+[Docs home](index.html) · [The Web Cookie Book](web-cookie-book.html) · [How cookies work](how-cookies-work.html) · [Respawning cookies](respawning-cookies.html)
 
 # Evercookie tracking
 
@@ -42,7 +42,7 @@ If you clear cookies but leave localStorage alone, the next visit reads the ID f
 
 This is the exact problem evercookie illustrates. Safari Cookie Cleaner removes cookies, which eliminates the most common tracking store. But if a site has written an evercookie, the ID can survive in localStorage, IndexedDB, the Cache API, ETags, or cached resources and respawn into a fresh cookie on the next visit.
 
-For the product-specific version of that story — how Safari Cookie Cleaner detects repeated values in the popup and what its respawning-data cleanup actually clears — read [Respawning cookies]({% link respawning-cookies.md %}).
+For the product-specific version of that story — how Safari Cookie Cleaner detects repeated values in the popup and what its respawning-data cleanup actually clears — read [Respawning cookies](respawning-cookies.html).
 
 To fully clear an evercookie you need to:
 

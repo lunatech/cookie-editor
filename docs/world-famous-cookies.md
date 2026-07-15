@@ -2,7 +2,7 @@
 title: "The Web Cookie Book: World famous cookies"
 ---
 
-[Docs home]({% link index.md %}) · [The Web Cookie Book]({% link web-cookie-book.md %}) · [How cookies work]({% link how-cookies-work.md %})
+[Docs home](index.html) · [The Web Cookie Book](web-cookie-book.html) · [How cookies work](how-cookies-work.html)
 
 # World famous cookies
 

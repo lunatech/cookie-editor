@@ -2,7 +2,7 @@
 title: The Web Cookie Book
 ---
 
-[Docs home]({% link index.md %}) · [How cookies work]({% link how-cookies-work.md %}) · [World famous cookies]({% link world-famous-cookies.md %}) · [Evercookie tracking]({% link evercookie.md %}) · [Respawning cookies]({% link respawning-cookies.md %})
+[Docs home](index.html) · [How cookies work](how-cookies-work.html) · [World famous cookies](world-famous-cookies.html) · [Evercookie tracking](evercookie.html) · [Respawning cookies](respawning-cookies.html)
 
 # The Web Cookie Book
 
@@ -17,10 +17,10 @@ This is not a claim that every cookie is malicious. Many cookies hold ordinary s
 
 ## Start here
 
-1. [How cookies work]({% link how-cookies-work.md %}) — the mechanics: `Set-Cookie`, scope, expiry, and what Safari exposes in Web Inspector
-2. [World famous cookies]({% link world-famous-cookies.md %}) — recognizable real-world examples from common web platforms
-3. [Evercookie tracking]({% link evercookie.md %}) — how sites copy identifiers across multiple browser stores so they survive deletion
-4. [Respawning cookies]({% link respawning-cookies.md %}) — how Safari Cookie Cleaner detects repeated identifiers and clears site data for the active origin
+1. [How cookies work](how-cookies-work.html) — the mechanics: `Set-Cookie`, scope, expiry, and what Safari exposes in Web Inspector
+2. [World famous cookies](world-famous-cookies.html) — recognizable real-world examples from common web platforms
+3. [Evercookie tracking](evercookie.html) — how sites copy identifiers across multiple browser stores so they survive deletion
+4. [Respawning cookies](respawning-cookies.html) — how Safari Cookie Cleaner detects repeated identifiers and clears site data for the active origin
 
 ## What this path is for
 
