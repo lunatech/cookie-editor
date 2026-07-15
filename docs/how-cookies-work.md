@@ -2,7 +2,7 @@
 title: "The Web Cookie Book: How cookies work"
 ---
 
-[Docs home]({% link index.md %}) · [The Web Cookie Book]({% link web-cookie-book.md %})
+[Docs home](index.html) · [The Web Cookie Book](web-cookie-book.html)
 
 # How cookies work
 
@@ -155,4 +155,4 @@ A few common misconceptions:
 - Cookies are not encrypted at rest by the browser; they are stored as plain text on disk. `Secure` only controls transmission over the network, not storage.
 - Deleting cookies does not delete browser cache, localStorage, sessionStorage, IndexedDB, or service worker registrations. A site can survive a cookie deletion if it stored a tracking identifier in any of those other stores.
 
-That last point is why Safari Cookie Cleaner checks for [respawning cookies]({% link respawning-cookies.md %}): cookies are still the main identifier store, but a site can write the same ID into other browser storage and restore it after a delete.
+That last point is why Safari Cookie Cleaner checks for [respawning cookies](respawning-cookies.html): cookies are still the main identifier store, but a site can write the same ID into other browser storage and restore it after a delete.
